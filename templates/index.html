@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <p>hi</p>
+</head>
+
+<body>
+    <script src="static/js/bootstrap.min.js"></script>
+    <script src="static/js/main.js"></script>
+
+    <form>
+      <label for="clientid">Client ID:</label>
+      <input type="text" id="clientid" name="clientid"><br><br>
+      <label for="clientsecret">Client Secret:</label>
+      <input type="text" id="clientsecret" name="clientsecret"><br><br>
+<!--      <input type="submit" value="Authorize" onsubmit="authenticate()">-->
+    </form>
+
+    <button onclick="authenticate()" type="button" id="query-send">
+        <span>Authorize</span>
+    </button>
+
+
+</body>
+
+</html>
