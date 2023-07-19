@@ -336,7 +336,7 @@ def run_ocs_strategy():
     while (True):
         try:
             time.sleep(60)
-            fetch_from_db_ocs()
+            # fetch_from_db_ocs()
             to_db_dict = {}
             # Check if it is trade time
             now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
