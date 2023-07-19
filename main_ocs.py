@@ -608,13 +608,20 @@ def run_ocs_strategy():
 
 @app.route("/fetch_from_db_ocs", methods=['POST'])
 def fetch_from_db_ocs():
+    table = dbparam["ocs_log_table"]
+
     conn = pyodbc.connect('Driver={SQL Server Native Client 11.0};'
-                          r'Server=localhost\MSSQLSERVER01;'
-                          'Database=algotrade;'
+                          r'Server=' + server + ';'
+                          'Database=' + db + ';'
                           'Trusted_Connection=yes;')  # integrated security
 
+    # conn = pyodbc.connect('Driver={SQL Server Native Client 11.0};'
+    #                       r'Server=localhost\MSSQLSERVER01;'
+    #                       'Database=algotrade;'
+    #                       'Trusted_Connection=yes;')  # integrated security
+
     cursor = conn.cursor()
-    SQLCommand = "SELECT * from OCSRuntimeLogs"
+    SQLCommand = "SELECT * from " + table
     cursor.execute(SQLCommand)
     results = cursor.fetchall()
     # print(results)
