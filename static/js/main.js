@@ -16,17 +16,31 @@ function authenticate(){
 
 }
 
-function adxbased(){
+function run_ocs_strategy(){
     var instrument_dropdown = document.getElementById("instrument");
     var value = instrument_dropdown.value;
     var text = instrument_dropdown.options[instrument_dropdown.selectedIndex].text;
 
     let form_data = new FormData()
     form_data.append('instrument', value)
-    let url = baseurl + '/initiate_adx_trade'
+    let url = baseurl + '/run_ocs_strategy'
     let response = fetch(url, {
         method : 'POST',
         body : form_data
     })
+
+}
+
+function showdb(){
+
+    let form_data = new FormData()
+
+    let url = baseurl + '/showdb'
+    let response = fetch(url, {
+        method : 'POST',
+        body : form_data
+    })
+
+
 
 }

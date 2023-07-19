@@ -1,79 +1,14 @@
-import json
-import math
 import requests
-from fyers_api import accessToken, fyersModel
-from flask import Flask, render_template, request, redirect, send_file, url_for
-from flask import Flask
-from flask import request
-import webbrowser
-import yfinance as yf
-from ta.trend import ADXIndicator
-import datetime
 import pandas as pd
 import time
+import datetime
 import numpy as np
+from ta.trend import ADXIndicator
 import yfinance as yf
+from fyers_api import accessToken, fyersModel
 from stockstats import StockDataFrame
+import math
 import pyodbc
-import http.client
-import configparser
-
-
-app = Flask(__name__)
-
-redirect_url = "http://127.0.0.1:8099/process_authcode_from_fyers"
-response_t = "code"
-state = "sample_state"
-
-config_obj = configparser.ConfigParser()
-config_obj.read(".\configfile.ini")
-dbparam = config_obj["mssql"]
-
-server = dbparam["Server"]
-db = dbparam["db"]
-
-
-# To get client_id and client_secret from user and pass to fyers api
-@app.route("/getauthcode", methods=['POST'])
-def getauthcode():
-    global client_id
-    client_id = request.form.get('client_id')
-    global client_secret
-    client_secret = request.form.get('client_secret')
-    session = accessToken.SessionModel(
-        client_id=client_id,
-        secret_key=client_secret,
-        redirect_uri=redirect_url,
-        response_type=response_t
-    )
-
-    response = session.generate_authcode()
-    webbrowser.open(response)
-    return response
-
-
-# Fyres api will call back this methid with auth code. This method will use that auth code to generate access token
-@app.route("/process_authcode_from_fyers")
-def process_authcode_from_fyers():
-    try:
-        authcode = request.args.get('auth_code')
-        session = accessToken.SessionModel(
-            client_id=client_id,
-            secret_key=client_secret,
-            redirect_uri=redirect_url,
-            response_type=response_t,
-            grant_type="authorization_code"
-        )
-        session.set_token(authcode)
-        response = session.generate_token()
-        global access_token
-        access_token = response["access_token"]
-        print("access token ", access_token)
-        global refresh_token
-        refresh_token = response["refresh_token"]
-        return render_template('authorized.html')
-    except Exception as e:
-        return {"status": "Failed", "data": str(e)}
 
 
 def time_in_range(start, end, current):
@@ -83,7 +18,7 @@ def time_in_range(start, end, current):
 
 def is_it_trade_time():
     start_first_time_window = datetime.time(9, 25, 0)
-    end_first_time_window = datetime.time(10, 45, 0)
+    end_first_time_window = datetime.time(22, 45, 0)
     current_first_time_window = datetime.datetime.now().time()
     first_time_window = time_in_range(start_first_time_window, end_first_time_window, current_first_time_window)
     if first_time_window == False:
@@ -101,6 +36,26 @@ def is_it_trade_time():
     else:
 #         print ("Not a trade time")
         return False
+
+
+# def get_history():
+#     clientid = "RVLYRDO3H5-100"
+#     access_token = "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJhcGkuZnllcnMuaW4iLCJpYXQiOjE2ODkzMDg4ODgsImV4cCI6MTY4OTM4MTAwOCwibmJmIjoxNjg5MzA4ODg4LCJhdWQiOlsieDowIiwieDoxIiwieDoyIiwiZDoxIiwiZDoyIiwieDoxIiwieDowIl0sInN1YiI6ImFjY2Vzc190b2tlbiIsImF0X2hhc2giOiJnQUFBQUFCa3NNN1kxNzlaZGlTLVRYNmpWQXFnQmpTUjdOdlNXNmF4UGNOQlgxREZiTXpfcHdfUUxRY0x3UFh2WGhkazg3U1lGdlNQbkJwQWRodGVNQkJjZDl2aGVlYTlDZ3VzN21XMXVoQUJiMjI2NGdwSGp3MD0iLCJkaXNwbGF5X25hbWUiOiJERUVOQURIQVlBTEFOIEtBUlRISSBTUklOSVZBU0FOIiwib21zIjoiSzEiLCJmeV9pZCI6IlhEMjA3ODkiLCJhcHBUeXBlIjoxMDAsInBvYV9mbGFnIjoiTiJ9.QVQw0PzXcK_oubv2T67zvc-z7ac-KqvY-32WGgpKivQ"
+#
+#     fyers = fyersModel.FyersModel(client_id=clientid, token=access_token)
+#
+#     data = {
+#         "symbol": "NSE:NIFTY50-INDEX",
+#         "resolution": "1",
+#         "date_format": "1",
+#         "range_from": "2023-07-05",
+#         "range_to": "2023-07-14",
+#         "cont_flag": "1"
+#     }
+#
+#     response = fyers.history(data=data)
+#     #     print(response)
+#     return response
 
 
 def get_option_chain_dataframe(symbol):
@@ -144,6 +99,28 @@ def get_option_chain_dataframe(symbol):
     return optionchain
 
 
+# def find_hammer_candles(symbol):
+#     # Download data for the symbol with a 1-minute interval
+#     data = yf.download(symbol, interval="1m")
+#     hammer_candles_list = []
+#     for i in range(1, len(data)):
+#         # Calculate candle attributes
+#         open_price = data["Open"][i]
+#         high = data["High"][i]
+#         low = data["Low"][i]
+#         close = data["Close"][i]
+#         body_range = abs(open_price - close)
+#         upper_shadow = high - max(open_price, close)
+#         lower_shadow = min(open_price, close) - low
+#
+#         # if lower_shadow >= 2 * body_range and upper_shadow <= 0.1 * body_range:
+#         #     hammer_candles_list.append(data.index[i])
+#         if (float(upper_shadow) <= 1.5) and (float(low) < float(open_price)) and (float(close) > float(open_price)):
+#             hammer_candles_list.append(data.index[i])
+#     #             print(f"Hammer candle found at {data.index[i]}")
+#     #     print(hammer_candles_list)
+#     return hammer_candles_list
+
 def find_hammer_candles(symbol, current_smma):
     # Download data for the symbol with a 1-minute interval
     #     data = yf.download(symbol, interval="1m")
@@ -167,7 +144,7 @@ def find_hammer_candles(symbol, current_smma):
         #         if lower_shadow >= 2 * body_range and upper_shadow <= 0.1 * body_range:
         #             print(f"Hammer candle found at {data.index[i]}")
 
-        if (float(upper_shadow) <= 1.5) and (float(low) < float(open_price)) and (float(close) > float(open_price)) and (float(close) > float(current_smma) and (float(low) > float(current_smma)) and (float(high) - float(low) <= 12)):
+        if (float(upper_shadow) <= 1.5) and (float(low) < float(open_price)) and (float(close) > float(open_price)) and (float(close) > float(current_smma) and (float(low) > float(current_smma))):
             hammer_candles_list.append(datetime.datetime.fromtimestamp(epoch[i]))
             # print(f"Hammer candle found at {datetime.datetime.fromtimestamp(epoch[i])}")
     # print(hammer_candles_list)
@@ -176,7 +153,7 @@ def find_hammer_candles(symbol, current_smma):
 
 def get_history(symbol):
     clientid = "RVLYRDO3H5-100"
-    # access_token = "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJhcGkuZnllcnMuaW4iLCJpYXQiOjE2ODkzNDMzMTgsImV4cCI6MTY4OTM4MTA1OCwibmJmIjoxNjg5MzQzMzE4LCJhdWQiOlsieDowIiwieDoxIiwieDoyIiwiZDoxIiwiZDoyIiwieDoxIiwieDowIl0sInN1YiI6ImFjY2Vzc190b2tlbiIsImF0X2hhc2giOiJnQUFBQUFCa3NWVldUU3hTaFhRbGJtTVpjejQyNjRRSjhHd1ZWRk9QWW9JaWlVVExRX3dUVnVScHhYRVJSbDJ5UHFDNjZhb3FOWERZTDBmRDJaSXhDZFBPMmluUFRLWTVZdWY3NklBOVgyY2ZTeXJLNVZXb1hJND0iLCJkaXNwbGF5X25hbWUiOiJERUVOQURIQVlBTEFOIEtBUlRISSBTUklOSVZBU0FOIiwib21zIjoiSzEiLCJmeV9pZCI6IlhEMjA3ODkiLCJhcHBUeXBlIjoxMDAsInBvYV9mbGFnIjoiTiJ9.7yrxIg28idFQUUaRBIh2YiJHviKGEP-G3T6gY4XMusg"
+    access_token = "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJhcGkuZnllcnMuaW4iLCJpYXQiOjE2ODkzNDMzMTgsImV4cCI6MTY4OTM4MTA1OCwibmJmIjoxNjg5MzQzMzE4LCJhdWQiOlsieDowIiwieDoxIiwieDoyIiwiZDoxIiwiZDoyIiwieDoxIiwieDowIl0sInN1YiI6ImFjY2Vzc190b2tlbiIsImF0X2hhc2giOiJnQUFBQUFCa3NWVldUU3hTaFhRbGJtTVpjejQyNjRRSjhHd1ZWRk9QWW9JaWlVVExRX3dUVnVScHhYRVJSbDJ5UHFDNjZhb3FOWERZTDBmRDJaSXhDZFBPMmluUFRLWTVZdWY3NklBOVgyY2ZTeXJLNVZXb1hJND0iLCJkaXNwbGF5X25hbWUiOiJERUVOQURIQVlBTEFOIEtBUlRISSBTUklOSVZBU0FOIiwib21zIjoiSzEiLCJmeV9pZCI6IlhEMjA3ODkiLCJhcHBUeXBlIjoxMDAsInBvYV9mbGFnIjoiTiJ9.7yrxIg28idFQUUaRBIh2YiJHviKGEP-G3T6gY4XMusg"
     fyers = fyersModel.FyersModel(client_id=clientid, token=access_token)
     today = time.strftime("%Y-%m-%d")
     data = {
@@ -226,8 +203,6 @@ def get_adx_value():
 
 
 def update_db(dict_to_db):
-    table = dbparam["ocs_log_table"]
-
     symbol = dict_to_db.get('symbol')
     timestamp = dict_to_db.get('timestamp')
     is_trade_time = dict_to_db.get('is_trade_time')
@@ -242,25 +217,19 @@ def update_db(dict_to_db):
     hammer_formed = dict_to_db.get('hammer_formed')
     adx_value = dict_to_db.get('adx_value')
     buy_signal = dict_to_db.get('buy_signal')
-    telegram_notified = dict_to_db.get('telegram_notified')
-
-    # conn = pyodbc.connect('Driver={SQL Server Native Client 11.0};'
-    #                       r'Server=localhost\MSSQLSERVER01;'
-    #                       'Database=algotrade;'
-    #                       'Trusted_Connection=yes;')  # integrated security
 
     conn = pyodbc.connect('Driver={SQL Server Native Client 11.0};'
-                          r'Server=' + server + ';'
-                          'Database=' + db + ';'
+                          r'Server=localhost\MSSQLSERVER01;'
+                          'Database=algotrade;'
                           'Trusted_Connection=yes;')  # integrated security
 
     cursor = conn.cursor()
 
     SQLCommand = (
-        "INSERT INTO " + table + "(symbol, timestamp, is_trade_time, close_20_sma, close_7_smma, close_9_ema, current_price, current_ema9_price, call_or_put, strike_price, smma_greater_than_sma, hammer_formed, adx_value, buy_signal, telegram_notified) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?);")
+        "INSERT INTO OCSRuntimeLogs (symbol, timestamp, is_trade_time, close_20_sma, close_7_smma, close_9_ema, current_price, current_ema9_price, call_or_put, strike_price, smma_greater_than_sma, hammer_formed, adx_value, buy_signal) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?);")
     Values = [symbol, timestamp, is_trade_time, close_20_sma, close_7_smma, close_9_ema, current_price,
               current_ema9_price, call_or_put, strike_price, smma_greater_than_sma, hammer_formed, adx_value,
-              buy_signal, telegram_notified]
+              buy_signal]
     print(SQLCommand)
     # Processing Query
     cursor.execute(SQLCommand, Values)
@@ -331,12 +300,11 @@ def get_next_expiry():
     return new_string
 
 
-@app.route("/run_ocs_strategy", methods=['POST'])
-def run_ocs_strategy():
+# Press the green button in the gutter to run the script.
+if __name__ == '__main__':
     while (True):
         try:
-            time.sleep(60)
-            fetch_from_db_ocs()
+            time.sleep(10)
             to_db_dict = {}
             # Check if it is trade time
             now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -371,7 +339,7 @@ def run_ocs_strategy():
                     # Decision to buy call
                     print("Current price > EMA9")
                     print("Taking call path")
-                    path = "CALL"
+
                     to_db_dict["call_or_put"] = "call"
 
                     # Get option chain from NSE website and get strike prices between 120 and 150
@@ -460,10 +428,6 @@ def run_ocs_strategy():
                                 if (last_adx_value > 19.5):
                                     print("Buy now")
                                     to_db_dict["buy_signal"] = "Y"
-
-                                    telegram_msg = "Buy " + path + " option of " + symbol + " with " + call_strikeprice + ". %0A Close 20 SMA - " + current_sma + "%0A Close 7 SMMA - " + current_smma + "%0A Current price - " + current_price + "%0A Current EMA 9 price - " + current_ema9_price + "%0A ADX - " + last_adx_value
-                                    telegram_response = send_to_telegram(telegram_msg)
-                                    to_db_dict["telegram_notified"] = telegram_response
                             else:
                                 print("No hammer candle formed in last 5 mins")
                                 to_db_dict["hammer_formed"] = "N"
@@ -480,8 +444,6 @@ def run_ocs_strategy():
                     print("Taking put path")
 
                     to_db_dict["call_or_put"] = "put"
-
-                    path = "PUT"
 
                     # Get option chain from NSE website and get strike prices between 120 and 150
                     # symbol = "NIFTY"
@@ -502,7 +464,7 @@ def run_ocs_strategy():
                     else:
 
                         expiry_options_put = get_next_expiry()
-                        symbol_options_put = "NSE:NIFTY" + str(expiry_options_put) + str(put_strikeprice) + "PE"
+                        symbol_options_put = "NSE:NIFTY" + str(expiry_options_put) + str(put_strikeprice) + "CE"
 
                         history_options_put = get_history(symbol_options_put)
                         df_put = pd.DataFrame(history_options_put['candles'], columns=['epoch', 'open', 'high', 'low', 'close', 'volume'])
@@ -567,11 +529,6 @@ def run_ocs_strategy():
                                 if (last_adx_value > 19.5):
                                     print("Buy now")
                                     to_db_dict["buy_signal"] = "Y"
-
-                                    telegram_msg = "Buy " + path + " option of " + symbol + " with " + put_strikeprice + ". %0A Close 20 SMA - " + current_sma + "%0A Close 7 SMMA - " + current_smma + "%0A Current price - " + current_price + "%0A Current EMA 9 price - " + current_ema9_price + "%0A ADX - " + last_adx_value
-                                    telegram_response = send_to_telegram(telegram_msg)
-                                    to_db_dict["telegram_notified"] = telegram_response
-
                             else:
                                 print("No hammer candle formed in last 5 mins")
                                 to_db_dict["hammer_formed"] = "N"
@@ -583,161 +540,11 @@ def run_ocs_strategy():
             else:
                 print("not a trade time")
                 to_db_dict["is_trade_time"] = "N"
-
-                # path = "CALL"
-                # symbol = "NIFTY"
-                # call_strikeprice = "19400"
-                # current_sma = "109"
-                # current_smma = "113"
-                # current_price = "19607.0"
-                # current_ema9_price = "19604.0"
-                # last_adx_value = "31.9898"
-                #
-                # telegram_msg = "Buy " + path + " option of " + symbol + " with " + call_strikeprice + ". %0A Close 20 SMA - " + current_sma + "%0A Close 7 SMMA - " + current_smma + "%0A Current price - " + current_price + "%0A Current EMA 9 price - " + current_ema9_price + "%0A ADX - " + last_adx_value
-                # telegram_response = send_to_telegram(telegram_msg)
-                # to_db_dict["telegram_notified"] = telegram_response
-
-                # time.sleep(60)
+                time.sleep(60)
 
             update_db(to_db_dict)
-
         except Exception as e:
             print(e)
             continue
 
-
-@app.route("/fetch_from_db_ocs", methods=['POST'])
-def fetch_from_db_ocs():
-    conn = pyodbc.connect('Driver={SQL Server Native Client 11.0};'
-                          r'Server=localhost\MSSQLSERVER01;'
-                          'Database=algotrade;'
-                          'Trusted_Connection=yes;')  # integrated security
-
-    cursor = conn.cursor()
-    SQLCommand = "SELECT * from OCSRuntimeLogs"
-    cursor.execute(SQLCommand)
-    results = cursor.fetchall()
-    # print(results)
-
-    df = pd.DataFrame(results,columns=['symbol'])
-    # df.to_html('templates/showdb.html')
-
-    with open('templates/showdb.html', 'w') as fo:
-        df.to_html(fo)
-
-    # df = pd.DataFrame(results, columns=['symbol', 'timestamp', 'is_trade_time', 'close_20_sma', 'close_7_smma', 'close_9_ema', 'current_price', 'current_ema9_price', 'call_or_put', 'strike_price', 'smma_greater_than_sma', 'hammer_formed', 'adx_value', 'buy_signal'])
-    # df.to_html('templates/showdb.html')
-
-
-def send_to_telegram(text):
-    try:
-        conn = http.client.HTTPSConnection("api.telegram.org")
-        payload = ''
-        headers = {}
-        text = text.replace(" ", "%20")
-        conn.request("POST", "/bot6386426510:AAHfwLLcNx9yOyqw2IKFxNFqJht4PCT49XA/sendMessage?chat_id=-876428015&text=" + text, payload, headers)
-        res = conn.getresponse()
-        data = res.read()
-        # print(data.decode("utf-8"))
-        return "Y"
-    except Exception as e:
-        print(e)
-        return "N"
-
-
-
-
-
-
-
-
-# @cross_origin("*")
-@app.route('/gui')
-def gui():
-    return render_template('index.html')
-
-
-@app.route('/showdb')
-def showdb():
-
-
-    table = dbparam["ocs_log_table"]
-
-    conn = pyodbc.connect('Driver={SQL Server Native Client 11.0};'
-                          r'Server=' + server + ';'
-                          'Database=' + db + ';'
-                          'Trusted_Connection=yes;')  # integrated security
-
-    cursor = conn.cursor()
-    SQLCommand = "SELECT * from " + table
-    cursor.execute(SQLCommand)
-    results = cursor.fetchall()
-    # print(results)
-
-    p = []
-    # df = pd.DataFrame(results, columns=['symbol', 'timestamp', 'is_trade_time', 'close_20_sma', 'close_7_smma', 'close_9_ema', 'current_price', 'current_ema9_price', 'call_or_put', 'strike_price', 'smma_greater_than_sma', 'hammer_formed', 'adx_value', 'adx_value'])
-
-    tbl = "<tr><td>symbol</td><td>timestamp</td><td>is_trade_time</td><td>close_20_sma</td><td>close_7_smma</td><td>close_9_ema</td><td>current_price</td><td>current_ema9_price</td><td>call_or_put</td><td>strike_price</td><td>smma_greater_than_sma</td><td>hammer_formed</td><td>adx_value</td><td>buy_signal</td></tr>"
-    p.append(tbl)
-
-    for row in results:
-        a = "<tr><td>%s</td>" % row[0]
-        p.append(a)
-        b = "<td>%s</td>" % row[1]
-        p.append(b)
-        c = "<td>%s</td>" % row[2]
-        p.append(c)
-        d = "<td>%s</td>" % row[3]
-        p.append(d)
-        e = "<td>%s</td>" % row[4]
-        p.append(e)
-        f = "<td>%s</td>" % row[5]
-        p.append(f)
-        g = "<td>%s</td>" % row[6]
-        p.append(g)
-        h = "<td>%s</td>" % row[7]
-        p.append(h)
-        i = "<td>%s</td>" % row[8]
-        p.append(i)
-        j = "<td>%s</td>" % row[9]
-        p.append(j)
-        k = "<td>%s</td>" % row[10]
-        p.append(k)
-        l = "<td>%s</td>" % row[11]
-        p.append(l)
-        m = "<td>%s</td>" % row[12]
-        p.append(m)
-        n = "<td>%s</td></tr>" % row[13]
-        p.append(n)
-
-    contents = '''<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
-    <html>
-    <head>
-    <meta content="text/html; charset=ISO-8859-1"
-    http-equiv="content-type">
-    <title>Python Webbrowser</title>
-    </head>
-    <body>
-    <table>
-    %s
-    </table>
-    </body>
-    </html>
-    ''' % (p)
-
-    filename = 'webbrowser.html'
-
-    def main(contents, filename):
-        output = open(filename, "w")
-        output.write(contents)
-        output.close()
-
-    main(contents, filename)
-    webbrowser.open(filename)
-
-    return "Please check the other tab opened for DB view"
-    # return render_template('showdb.html')
-
-
-if __name__ == "__main__":
-    app.run(host="0.0.0.0", port="8099", debug=False)
+# See PyCharm help at https://www.jetbrains.com/help/pycharm/

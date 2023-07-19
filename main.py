@@ -58,7 +58,7 @@ def process_authcode_from_fyers():
         response = session.generate_token()
         global access_token
         access_token = response["access_token"]
-        print("access toke ", access_token)
+        print("access token ", access_token)
         global refresh_token
         refresh_token = response["refresh_token"]
         return render_template('authorized.html')
