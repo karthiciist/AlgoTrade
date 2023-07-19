@@ -88,7 +88,7 @@ def is_it_trade_time():
     first_time_window = time_in_range(start_first_time_window, end_first_time_window, current_first_time_window)
     if first_time_window == False:
         start_second_time_window = datetime.time(12, 45, 0)
-        end_second_time_window = datetime.time(14, 30, 0)
+        end_second_time_window = datetime.time(20, 30, 0)
         current_second_time_window = datetime.datetime.now().time()
         second_time_window = time_in_range(start_second_time_window, end_second_time_window, current_second_time_window)
 
@@ -148,30 +148,34 @@ def find_hammer_candles(symbol, current_smma):
     # Download data for the symbol with a 1-minute interval
     #     data = yf.download(symbol, interval="1m")
     hammer_candles_list = []
-    history = get_history(symbol)
-    data = pd.DataFrame(history['candles'], columns=['epoch', 'open', 'high', 'low', 'close', 'volume'])
-    #     print(data)
-    for i in range(1, len(data)):
-        # Calculate candle attributes
-        epoch = data["epoch"]
-        open_price = data["open"][i]
-        high = data["high"][i]
-        low = data["low"][i]
-        close = data["close"][i]
-        body_range = abs(open_price - close)
-        upper_shadow = high - max(open_price, close)
-        lower_shadow = min(open_price, close) - low
+    try:
+        history = get_history(symbol)
+        data = pd.DataFrame(history['candles'], columns=['epoch', 'open', 'high', 'low', 'close', 'volume'])
+        #     print(data)
+        for i in range(1, len(data)):
+            # Calculate candle attributes
+            epoch = data["epoch"]
+            open_price = data["open"][i]
+            high = data["high"][i]
+            low = data["low"][i]
+            close = data["close"][i]
+            body_range = abs(open_price - close)
+            upper_shadow = high - max(open_price, close)
+            lower_shadow = min(open_price, close) - low
 
-        #         print (open_price, high, low, close)
+            #         print (open_price, high, low, close)
 
-        #         if lower_shadow >= 2 * body_range and upper_shadow <= 0.1 * body_range:
-        #             print(f"Hammer candle found at {data.index[i]}")
+            #         if lower_shadow >= 2 * body_range and upper_shadow <= 0.1 * body_range:
+            #             print(f"Hammer candle found at {data.index[i]}")
 
-        if (float(upper_shadow) <= 1.5) and (float(low) < float(open_price)) and (float(close) > float(open_price)) and (float(close) > float(current_smma) and (float(low) > float(current_smma)) and (float(high) - float(low) <= 12)):
-            hammer_candles_list.append(datetime.datetime.fromtimestamp(epoch[i]))
-            # print(f"Hammer candle found at {datetime.datetime.fromtimestamp(epoch[i])}")
-    # print(hammer_candles_list)
-    return hammer_candles_list
+            if (float(upper_shadow) <= 1.5) and (float(low) < float(open_price)) and (float(close) > float(open_price)) and (float(close) > float(current_smma) and (float(low) > float(current_smma)) and (float(high) - float(low) <= 12)):
+                hammer_candles_list.append(datetime.datetime.fromtimestamp(epoch[i]))
+                # print(f"Hammer candle found at {datetime.datetime.fromtimestamp(epoch[i])}")
+        # print(hammer_candles_list)
+        return hammer_candles_list
+    except Exception as e:
+        print(e)
+        return hammer_candles_list
 
 
 def get_history(symbol):
@@ -243,6 +247,10 @@ def update_db(dict_to_db):
     adx_value = dict_to_db.get('adx_value')
     buy_signal = dict_to_db.get('buy_signal')
     telegram_notified = dict_to_db.get('telegram_notified')
+    open = dict_to_db.get('open')
+    close = dict_to_db.get('close')
+    high = dict_to_db.get('high')
+    low = dict_to_db.get('low')
 
     # conn = pyodbc.connect('Driver={SQL Server Native Client 11.0};'
     #                       r'Server=localhost\MSSQLSERVER01;'
@@ -257,10 +265,10 @@ def update_db(dict_to_db):
     cursor = conn.cursor()
 
     SQLCommand = (
-        "INSERT INTO " + table + "(symbol, timestamp, is_trade_time, close_20_sma, close_7_smma, close_9_ema, current_price, current_ema9_price, call_or_put, strike_price, smma_greater_than_sma, hammer_formed, adx_value, buy_signal, telegram_notified) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?);")
+        "INSERT INTO " + table + " (symbol, timestamp, is_trade_time, close_20_sma, close_7_smma, close_9_ema, current_price, current_ema9_price, call_or_put, strike_price, smma_greater_than_sma, hammer_formed, adx_value, buy_signal, telegram_notified, [open], [close], [high], [low]) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?);")
     Values = [symbol, timestamp, is_trade_time, close_20_sma, close_7_smma, close_9_ema, current_price,
               current_ema9_price, call_or_put, strike_price, smma_greater_than_sma, hammer_formed, adx_value,
-              buy_signal, telegram_notified]
+              buy_signal, telegram_notified, open, close, high, low]
     print(SQLCommand)
     # Processing Query
     cursor.execute(SQLCommand, Values)
@@ -355,6 +363,16 @@ def run_ocs_strategy():
 
                 nifty_stockstats_df[['epoch', 'close_20_sma', 'close_7_smma', 'close_9_ema']]
                 nifty_stockstats_df = nifty_stockstats_df.round()
+
+                open = nifty_stockstats_df['open'].iloc[-1]
+                close = nifty_stockstats_df['close'].iloc[-1]
+                high = nifty_stockstats_df['high'].iloc[-1]
+                low = nifty_stockstats_df['low'].iloc[-1]
+
+                to_db_dict["open"] = str(open)
+                to_db_dict["close"] = str(close)
+                to_db_dict["high"] = str(high)
+                to_db_dict["low"] = str(low)
 
                 # Check if current price of selected index is greater than ema9
                 current_price = nifty_stockstats_df['close'].iloc[-1]
